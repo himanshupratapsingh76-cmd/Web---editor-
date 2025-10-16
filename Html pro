@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+  <title>Hosted Pro Editor — HTML • CSS • JS</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/material-darker.min.css">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin:0; padding:0; height:100%; font-family:Arial, sans-serif; background:#1e293b; color:#e2e8f0; }
+    .app { display:flex; flex-direction:column; height:100vh; }
+    header { padding:8px; background:#0f172a; display:flex; align-items:center; }
+    header h1 { margin:0; flex:1; font-size:18px; }
+    .btn { margin-left:8px; padding:6px 10px; border:1px solid #64748b; border-radius:5px; background:transparent; color:#e2e8f0; cursor:pointer; }
+    .btn:hover { background:#334155; }
+    main { flex:1; display:flex; flex-direction:column; }
+    .tabs { display:flex; background:#0f172a; }
+    .tab { flex:1; padding:8px; text-align:center; color:#94a3b8; cursor:pointer; }
+    .tab.active { color:#e2e8f0; background:#1e293b; }
+    .editors { flex:1; position:relative; }
+    .editor-pane { position:absolute; top:0; left:0; right:0; bottom:0; display:none; }
+    .editor-pane.active { display:block; }
+    .CodeMirror { height:100%; }
+    .divider { height:5px; background:#334155; cursor:row-resize; }
+    iframe#preview { width:100%; border:0; flex:1; background:white; }
+    footer { display:flex; gap:8px; padding:8px; background:#0f172a; }
+    .big-btn { flex:1; padding:10px; border:none; border-radius:5px; background:#2563eb; color:white; cursor:pointer; }
+    .toggle-btn { background:#f59e0b; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Hosted Pro Editor</h1>
+      <button id="newFile" class="btn">New</button>
+      <button id="openFileBtn" class="btn">Open</button>
+      <input type="file" id="openFile" accept=".html,.htm,text/html,text/plain" style="display:none" />
+      <button id="save" class="btn">Save</button>
+      <button id="saveAs" class="btn">Save As</button>
+      <button id="download" class="btn">Download</button>
+      <button id="liveToggle" class="btn toggle-btn">Live: ON</button>
+    </header>
+    <main>
+      <div class="tabs">
+        <div class="tab active" data-tab="html">HTML</div>
+        <div class="tab" data-tab="css">CSS</div>
+        <div class="tab" data-tab="js">JS</div>
+      </div>
+      <div class="editors">
+        <div id="htmlPane" class="editor-pane active"></div>
+        <div id="cssPane" class="editor-pane"></div>
+        <div id="jsPane" class="editor-pane"></div>
+      </div>
+      <div class="divider" id="divider"></div>
+      <iframe id="preview"></iframe>
+    </main>
+    <footer>
+      <button id="btnSave" class="big-btn">Save</button>
+      <button id="btnDownload" class="big-btn">Download</button>
+      <button id="btnLiveToggle" class="big-btn toggle-btn">Live: ON</button>
+    </footer>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/xml/xml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/javascript/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/css/css.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/htmlmixed/htmlmixed.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/closetag.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/closebrackets.min.js"></script>
+  <script>
+    // Setup editors
+    function makeEditor(container, mode){
+      const ta = document.createElement('textarea');
+      container.appendChild(ta);
+      const ed = CodeMirror.fromTextArea(ta, {
+        mode: mode,
+        lineNumbers: true,
+        lineWrapping: true,
+        theme: 'material-darker',
+        indentUnit: 2,
+        tabSize: 2,
+        indentWithTabs: false,
+        autoCloseTags: true,
+        autoCloseBrackets: true,
+        matchBrackets: true
+      });
+      ed.setSize('100%','100%');
+      return ed;
+    }
+
+    const htmlEd = makeEditor(document.getElementById('htmlPane'), 'htmlmixed');
+    const cssEd = makeEditor(document.getElementById('cssPane'), 'css');
+    const jsEd = makeEditor(document.getElementById('jsPane'), 'javascript');
+
+    // initial content
+    htmlEd.setValue(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Untitled</title>
+  </head>
+  <body>
+    <h1>Hosted Editor Loaded</h1>
+  </body>
+</html>`);
+    cssEd.setValue(`body { font-family: Arial, sans-serif; padding:10px; background: #f0f0f0; }`);
+    jsEd.setValue(`console.log('Hello from JS');`);
+
+    let live = true;
+    let currentFileName = 'untitled.html';
+
+    function switchTab(tabName){
+      document.querySelectorAll('.tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === tabName);
+      });
+      document.getElementById('htmlPane').classList.toggle('active', tabName==='html');
+      document.getElementById('cssPane').classList.toggle('active', tabName==='css');
+      document.getElementById('jsPane').classList.toggle('active', tabName==='js');
+      htmlEd.refresh(); cssEd.refresh(); jsEd.refresh();
+    }
+    document.querySelectorAll('.tab').forEach(t => {
+      t.addEventListener('click', ()=> switchTab(t.dataset.tab));
+    });
+
+    function buildDocument(){
+      let doc = htmlEd.getValue();
+      const css = cssEd.getValue();
+      const js = jsEd.getValue();
+      if(doc.includes('</head>')){
+        doc = doc.replace('</head>', `<style>\n${css}\n</style>\n</head>`);
+      } else {
+        doc = `<head><style>\n${css}\n</style></head>` + doc;
+      }
+      if(doc.includes('</body>')){
+        doc = doc.replace('</body>', `<script>\n${js}\n</script>\n</body>`);
+      } else {
+        doc += `<script>\n${js}\n</script>`;
+      }
+      return doc;
+    }
+
+    function render(){
+      if(!live) return;
+      const iframeDoc = document.getElementById('preview').contentDocument;
+      iframeDoc.open();
+      iframeDoc.write(buildDocument());
+      iframeDoc.close();
+    }
+
+    htmlEd.on('change', render);
+    cssEd.on('change', render);
+    jsEd.on('change', render);
+
+    document.getElementById('liveToggle').addEventListener('click', ()=>{
+      live = !live;
+      document.getElementById('liveToggle').innerText = live ? 'Live: ON' : 'Live: OFF';
+      render();
+    });
+
+    document.getElementById('openFileBtn').addEventListener('click', ()=> {
+      document.getElementById('openFile').click();
+    });
+    document.getElementById('openFile').addEventListener('change', e => {
+      const f = e.target.files[0];
+      if(!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        let text = reader.result;
+        let css = '', js = '';
+        text = text.replace(/<style[^>]*>([\\s\\S]*?)<\\/style>/gi, (m, p1) => { css += p1 + '\\n'; return ''; });
+        text = text.replace(/<script[^>]*>([\\s\\S]*?)<\\/script>/gi, (m, p1) => { js += p1 + '\\n'; return ''; });
+        htmlEd.setValue(text);
+        cssEd.setValue(css);
+        jsEd.setValue(js);
+        render();
+      };
+      reader.readAsText(f);
+    });
+
+    document.getElementById('newFile').addEventListener('click', ()=>{
+      if(!confirm('Discard unsaved changes?')) return;
+      htmlEd.setValue(`<html><body></body></html>`);
+      cssEd.setValue('');
+      jsEd.setValue('');
+      render();
+    });
+
+    function downloadFile(name, content){
+      const blob = new Blob([content], {type: 'text/html'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    document.getElementById('save').addEventListener('click', ()=>{
+      downloadFile(currentFileName, buildDocument());
+    });
+    document.getElementById('saveAs').addEventListener('click', ()=>{
+      const nm = prompt('Filename', currentFileName) || currentFileName;
+      currentFileName = nm;
+      downloadFile(currentFileName, buildDocument());
+    });
+    document.getElementById('download').addEventListener('click', ()=>{
+      downloadFile(currentFileName, buildDocument());
+    });
+
+    // Divider resizing
+    const divider = document.getElementById('divider');
+    let startY = 0, startH = 0;
+    divider.addEventListener('mousedown', e => {
+      startY = e.clientY;
+      startH = document.querySelector('main .editors').offsetHeight;
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    function onMove(e){
+      const dy = e.clientY - startY;
+      document.querySelector('main .editors').style.height = (startH + dy) + 'px';
+      htmlEd.refresh(); cssEd.refresh(); jsEd.refresh();
+    }
+    function onUp(){
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+
+    // initial render
+    render();
+  </script>
+</body>
+</html>
